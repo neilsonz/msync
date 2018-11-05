@@ -9,7 +9,7 @@ import {
   fs,
   fsPath,
   exec,
-  table,
+  Subject,
 } from '../common';
 import * as listCommand from './ls.cmd';
 import * as syncCommand from './sync.cmd';
@@ -19,6 +19,7 @@ export const description = 'Builds and syncs all typescript modules in order.';
 export const args = {
   '-i': 'Include ignored modules.',
   '-w': 'Sync on changes to files.',
+  '-v': 'Verbose mode. Prints all error details.',
 };
 
 /**
@@ -29,24 +30,27 @@ export async function cmd(args?: {
   options: {
     i?: boolean;
     w?: boolean;
+    v?: boolean;
   };
 }) {
   const options = (args && args.options) || {};
   const watch = options.w || false;
   const includeIgnored = options.i || false;
-  await build({ includeIgnored, watch });
-}
-
-export interface IOptions {
-  includeIgnored?: boolean;
-  watch?: boolean;
+  const verbose = options.v || false;
+  await build({ includeIgnored, watch, verbose });
 }
 
 /**
  * Builds all typescript modules.
  */
-export async function build(options: IOptions = {}) {
-  const { includeIgnored = false, watch = false } = options;
+export async function build(
+  options: {
+    includeIgnored?: boolean;
+    watch?: boolean;
+    verbose?: boolean;
+  } = {},
+) {
+  const { includeIgnored = false, watch = false, verbose = false } = options;
   const settings = await loadSettings();
   if (!settings) {
     log.warn.yellow(constants.CONFIG_NOT_FOUND_ERROR);
@@ -57,7 +61,7 @@ export async function build(options: IOptions = {}) {
     .filter(pkg => pkg.isTypeScript);
 
   if (watch) {
-    return buildWatch(modules, includeIgnored);
+    return buildWatch(modules, includeIgnored, verbose);
   } else {
     return buildOnce(modules);
   }
@@ -102,32 +106,99 @@ export async function buildOnce(modules: IModule[]) {
 /**
  * Builds watches the typescript for the given set of modules.
  */
-export async function buildWatch(modules: IModule[], includeIgnored: boolean) {
+export async function buildWatch(
+  modules: IModule[],
+  includeIgnored: boolean,
+  verbose: boolean,
+) {
   log.info.magenta('\nBuild watching:');
   listCommand.printTable(modules, { includeIgnored });
   log.info();
 
+  const state: {
+    [key: string]: {
+      count: number;
+      errors: string[];
+      message?: string;
+      isBuilding?: boolean;
+    };
+  } = {};
+
+  const updates$ = new Subject();
+  updates$.debounceTime(100).subscribe(() => {
+    log.clear();
+    const items = Object.keys(state)
+      .sort()
+      .map(key => ({ key, value: state[key] }));
+
+    // Print build summary.
+    items.forEach(({ key, value }) => {
+      const hasErrors = value.errors.length > 0;
+      const bullet = hasErrors
+        ? log.red('✘')
+        : value.isBuilding
+          ? log.gray('✎')
+          : log.green('✔');
+      log.info(`${bullet} ${log.cyan(key)} ${value.message}`);
+    });
+
+    // Print errors.
+    const errors = items.filter(({ value }) => value.errors.length > 0);
+    if (verbose && errors.length > 0) {
+      log.info();
+      errors.forEach(({ key, value }) => {
+        value.errors.forEach(error => {
+          log
+            .table()
+            .add([log.yellow(key), formatError(error)])
+            .log();
+        });
+      });
+    }
+  });
+
   modules.forEach(async pkg => {
     const tsc = await tscCommand(pkg);
     const cmd = `cd ${pkg.dir} && ${tsc} --watch`;
-    exec.run$(cmd).forEach(data => {
-      const isError = data.text.includes('error');
+    exec.run$(cmd).subscribe(data => {
+      let text = data.text;
+      const isBuilding =
+        text.includes('Starting compilation in watch') ||
+        text.includes('Starting incremental compilation');
+      const isError =
+        text.includes('error') && !text.includes('Found 0 errors.');
+
+      const isSuccess = text.includes('Found 0 errors.');
+      const isBuilt = text.includes('Watching for file changes.');
 
       // Clean up text output from TS compiler:
-      //    - Remove training new-lines.
-      //    - Remove date prefix.
-      let text = data.text.replace(/\n*$/, '');
-      if (!isError) {
-        text = text.substring(text.indexOf(' - ') + 3, text.length);
+      //    - Remove trailing new-lines.
+      text = text.replace(/\n*$/, '');
+
+      const key = pkg.name;
+      let obj = state[key] || { count: 0, errors: [] };
+      obj.isBuilding = isBuilding;
+
+      if (isBuilding || isBuilt) {
+        const count = isBuilding ? obj.count + 1 : obj.count;
+        const status = isBuilding ? 'Building...' : 'Built';
+        const countStatus = isBuilding ? log.gray(count) : log.green(count);
+        const message = log.gray(`${status} (${countStatus})`);
+        obj = { ...obj, count, message };
+      }
+      if (isError) {
+        if (!isBuilt) {
+          obj.errors = [...obj.errors, text];
+        }
+        const error = obj.errors.length === 1 ? 'Error' : 'Errors';
+        obj.message = log.red(`${obj.errors.length} ${error}`);
+      }
+      if (isSuccess) {
+        obj.errors = [];
       }
 
-      if (isError) {
-        table()
-          .add([log.yellow(pkg.name), formatError(text)])
-          .log();
-      } else {
-        log.info(`${log.cyan(pkg.name)} ${text}`);
-      }
+      state[key] = obj;
+      updates$.next();
     });
   });
 }

@@ -1,13 +1,11 @@
 import * as semver from 'semver';
-
 export { semver };
+
+export { log } from '@tdb/log/lib/server';
+
 export {
   R,
   moment,
-  debounce,
-  log,
-  table,
-  ITable,
   file,
   fs,
   fsPath,

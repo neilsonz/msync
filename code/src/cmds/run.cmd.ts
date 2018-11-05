@@ -22,21 +22,21 @@ export async function cmd(args?: {
 }) {
   const cmd = (args && args.params && args.params.join(' ')) || '';
   const options = (args && args.options) || {};
-
   const includeIgnored = options.i || false;
   const concurrent = options.c || false;
   await run(cmd, { includeIgnored, concurrent });
 }
 
-export interface IOptions {
-  includeIgnored?: boolean;
-  concurrent?: boolean;
-}
-
 /**
  * Runs the given command on all modules.
  */
-export async function run(cmd: string, options: IOptions = {}) {
+export async function run(
+  cmd: string,
+  options: {
+    includeIgnored?: boolean;
+    concurrent?: boolean;
+  } = {},
+) {
   const { includeIgnored = false, concurrent = false } = options;
   if (!cmd) {
     log.info.red(`No command specified.\n`);

@@ -1,4 +1,5 @@
 export interface IModule {
+  engine: 'NPM' | 'YARN';
   dir: string;
   name: string;
   version: string;
@@ -27,3 +28,5 @@ export interface INpmInfo {
   latest: string;
   json: any;
 }
+
+export { LogTable } from '@tdb/log/lib/server';

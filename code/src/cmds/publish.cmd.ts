@@ -22,13 +22,10 @@ export const args = {};
  * CLI command.
  */
 export async function cmd(args?: { params: string[]; options: {} }) {
-  // const options = (args && args.options) || {};
   await publish({});
 }
 
-export interface IOptions {}
-
-export async function publish(options: IOptions = {}) {
+export async function publish(options: {} = {}) {
   // Retrieve settings.
   const settings = await loadSettings({ npm: true, spinner: true });
   if (!settings) {
@@ -48,9 +45,9 @@ export async function publish(options: IOptions = {}) {
 
   // Prompt the user if they want to continue.
   if (
-    !await promptYesNo(
+    !(await promptYesNo(
       `Publish ${total} ${plural('module', total)} to NPM now?`,
-    )
+    ))
   ) {
     log.info();
     return;
@@ -60,8 +57,11 @@ export async function publish(options: IOptions = {}) {
   log.info.gray(`Publishing to NPM:\n`);
   const startedAt = new Date();
 
-  // Slow.  Full install and sync mode.
-  const publishCommand = () => 'yarn install && npm publish && msync sync';
+  // [Slow] Full install and sync mode.
+  const publishCommand = (pkg: IModule) => {
+    const install = pkg.engine === 'YARN' ? 'yarn install' : 'npm install';
+    return `${install} && npm publish && msync sync`;
+  };
   const publishResult = await runCommand(modules, publishCommand, {
     concurrent: false,
     exitOnError: true,
@@ -80,7 +80,7 @@ const runCommand = async (
   cmd: (pkg: IModule) => string,
   options: IListrOptions,
 ) => {
-  const prepublish = (pkg: IModule) => {
+  const task = (pkg: IModule) => {
     return {
       title: `${log.cyan(pkg.name)} ${log.magenta(cmd(pkg))}`,
       task: async () => {
@@ -89,7 +89,7 @@ const runCommand = async (
       },
     };
   };
-  const tasks = modules.map(pkg => prepublish(pkg));
+  const tasks = modules.map(pkg => task(pkg));
   const runner = listr(tasks, options);
   try {
     await runner.run();
@@ -106,7 +106,8 @@ async function promptYesNo(message: string) {
     message,
     choices: [{ name: 'Yes', value: 'true' }, { name: 'No', value: 'false' }],
   };
-  const answer = (await inquirer.prompt(confirm)).answer;
+  const res = (await inquirer.prompt(confirm)) as { answer: string };
+  const answer = res.answer;
   return answer === 'true' ? true : false;
 }
 

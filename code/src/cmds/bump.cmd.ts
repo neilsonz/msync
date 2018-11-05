@@ -10,15 +10,13 @@ import {
   dependsOn,
   updatePackageRef,
   savePackage,
-  table,
-  ITable,
+  LogTable,
 } from '../common';
 import * as listCommand from './ls.cmd';
 
 export const name = 'bump';
 export const alias = 'b';
-export const description =
-  'Bumps a module version along with it\'s entire dependency graph.';
+export const description = `Bumps a module version along with it's entire dependency graph.`;
 export const args = {
   '-i': 'Include ignored modules.',
   '-d': 'Dry run where no files are saved.',
@@ -82,7 +80,7 @@ export async function bump(options: IOptions = {}) {
   }
 
   // Get the version number.
-  const release = await promptForReleaseType(module.version);
+  const release = (await promptForReleaseType(module.version)) as ReleaseType;
   if (!release) {
     return;
   }
@@ -104,17 +102,15 @@ export async function bump(options: IOptions = {}) {
   }
 }
 
-export interface IBumpOptions {
+async function bumpModule(options: {
   release: ReleaseType;
   pkg: IModule;
   allModules: IModule[];
   save: boolean;
   level?: number;
   ref?: { name: string; fromVersion: string; toVersion: string };
-  table?: ITable;
-}
-
-async function bumpModule(options: IBumpOptions) {
+  table?: LogTable;
+}) {
   // Setup initial conditions.
   const { release, pkg, allModules, save, level = 0, ref } = options;
   const dependants = dependsOn(pkg, allModules);
@@ -129,7 +125,7 @@ async function bumpModule(options: IBumpOptions) {
   const head = ['update', 'module', 'version', 'ref updated'].map(title =>
     log.gray(title),
   );
-  const tableBuilder = options.table || table({ head });
+  const tableBuilder = options.table || log.table({ head });
 
   if (!ref) {
     let msg = '';
@@ -186,7 +182,8 @@ async function promptForModule(modules: IModule[]) {
     message: 'Select a module',
     choices,
   };
-  const name = (await inquirer.prompt(confirm)).name;
+  const res = (await inquirer.prompt(confirm)) as { name: string };
+  const name = res.name;
   return modules.find(pkg => pkg.name === name);
 }
 
@@ -198,5 +195,6 @@ async function promptForReleaseType(version: string) {
     message: 'Release',
     choices,
   };
-  return (await inquirer.prompt(confirm)).name;
+  const res = (await inquirer.prompt(confirm)) as { name: string };
+  return res.name;
 }

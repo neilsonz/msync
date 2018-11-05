@@ -3,7 +3,6 @@ import {
   loadSettings,
   ISettings,
   constants,
-  table,
   IModule,
   filter,
   fsPath,
@@ -45,7 +44,13 @@ export async function cmd(args?: {
 }
 
 export type DisplayDependencies = 'none' | 'local' | 'all';
-export interface IOptions {
+
+export interface ITableColumn {
+  head?: string;
+  render: (data: any) => string;
+}
+
+export interface IListOptions {
   basePath?: string;
   dependencies?: DisplayDependencies;
   includeIgnored?: boolean;
@@ -56,15 +61,10 @@ export interface IOptions {
   columns?: ITableColumn[];
 }
 
-export interface ITableColumn {
-  head?: string;
-  render: (data: any) => string;
-}
-
 /**
  * List modules in dependency order.
  */
-export async function ls(options: IOptions = {}) {
+export async function ls(options: IListOptions = {}) {
   const { includeIgnored = false, npm = false } = options;
   const formatting = options.formatting === false ? false : true;
 
@@ -73,6 +73,7 @@ export async function ls(options: IOptions = {}) {
     log.warn.yellow(constants.CONFIG_NOT_FOUND_ERROR);
     return;
   }
+
   const modules = settings.modules.filter(pkg =>
     filter.includeIgnored(pkg, includeIgnored),
   );
@@ -98,7 +99,7 @@ export async function ls(options: IOptions = {}) {
   };
 }
 
-export function printTable(modules: IModule[], options: IOptions = {}) {
+export function printTable(modules: IModule[], options: IListOptions = {}) {
   const {
     dependencies = 'none',
     includeIgnored = false,
@@ -124,7 +125,9 @@ export function printTable(modules: IModule[], options: IOptions = {}) {
         const bullet = isIgnored ? log.gray('-') : log.magenta('-');
         const name = isIgnored
           ? log.gray(dep.name)
-          : dep.isLocal ? log.cyan(dep.name) : log.gray(dep.name);
+          : dep.isLocal
+            ? log.cyan(dep.name)
+            : log.gray(dep.name);
         return `${bullet} ${name} ${log.gray(dep.version)}`;
       })
       .join('\n');
@@ -198,7 +201,7 @@ export function printTable(modules: IModule[], options: IOptions = {}) {
     (columns || []).forEach(col => addColumn(col));
 
     const head = cols.map(col => log.gray(col.head));
-    const builder = table({ head });
+    const builder = log.table({ head });
     modules.forEach(pkg => {
       const row = [] as string[];
       cols.forEach(col => row.push(col.render(pkg)));
