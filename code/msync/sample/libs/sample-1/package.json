@@ -1,0 +1,11 @@
+{
+  "name": "msync.sample-1",
+  "version": "0.0.8",
+  "scripts": {
+    "build": "tsc",
+    "prepare": "yarn run build"
+  },
+  "dependencies": {
+    "@platform/ts": "3"
+  }
+}
