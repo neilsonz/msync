@@ -33,6 +33,6 @@
     "lib",
     "bin.js"
   ],
-  "repository": "philcockfield/msync",
+  "repository": "neilsonz/msync",
   "license": "MIT"
 }
