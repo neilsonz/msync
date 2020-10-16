@@ -1,5 +1,5 @@
 declare module 'toposort' {
-  type Node = string | number; // eslint-disable-line
+  type Node = string | number;
   interface IToposort {
     array<T>(nodes: T[], edges: T[][]): T[];
     <T>(edges: T[][]): T[];
