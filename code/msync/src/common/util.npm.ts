@@ -1,5 +1,5 @@
 import * as t from './types';
-import { npm, defaultValue } from './libs';
+import { defaultValue, exec } from './libs';
 
 /**
  * Lookup latest info for module from NPM.
@@ -12,14 +12,14 @@ export async function info(
   } = {},
 ) {
   const { onModuleRead } = options;
-  const modules = (Array.isArray(pkg) ? pkg : [pkg]).filter(pkg => pkg.json.private !== true);
+  const modules = (Array.isArray(pkg) ? pkg : [pkg]).filter((pkg) => pkg.json.private !== true);
   const batchSize = defaultValue(options.batchSize, 20);
 
   const getInfo = async (pkg: t.IModule) => {
     try {
       const name = pkg.name;
       const version = pkg.version;
-      const latest = await npm.getVersion(pkg.name);
+      const latest = await getVersion(pkg.name);
       if (onModuleRead) {
         onModuleRead(pkg);
       }
@@ -33,12 +33,17 @@ export async function info(
 
   let res: t.INpmInfo[] = [];
   for (const batch of chunk(batchSize, modules)) {
-    const items = await Promise.all(batch.map(pkg => getInfo(pkg)));
+    const items = await Promise.all(batch.map((pkg) => getInfo(pkg)));
     res = [...res, ...items];
   }
 
   return res;
 }
+
+const getVersion = async (name: string): Promise<string> => {
+  const result = await exec.cmd.run(`npm show ${name} version`, { silent: true });
+  return result.info.join('\n');
+};
 
 /**
  * [Helpers]
