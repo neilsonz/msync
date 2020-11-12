@@ -15,11 +15,12 @@
     "prepare": "ts prepare"
   },
   "dependencies": {
+    "@platform/exec": "0.2.45",
     "@platform/fs": "0.5.5",
     "@platform/log": "0.1.7",
     "@platform/npm": "0.2.51",
-    "@platform/exec": "0.2.45",
     "@platform/util.value": "0.7.3",
+    "chalk": "^4.1.0",
     "command-interface": "4.2.1",
     "rsync": "0.6.1",
     "toposort": "2.0.2"
